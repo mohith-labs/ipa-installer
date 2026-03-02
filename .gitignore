@@ -1,0 +1,6 @@
+node_modules/
+dist/
+uploads/
+certs/
+.env
+.DS_Store

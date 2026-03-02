@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Install App — Install On Air</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <div class="header">
+    <h1>Install <span>On Air</span></h1>
+  </div>
+
+  <div class="install-container">
+
+    <!-- Loading state -->
+    <div class="install-loading" id="loadingState">
+      <p>Loading app info...</p>
+    </div>
+
+    <!-- Not found state -->
+    <div class="install-not-found" id="notFoundState" style="display: none;">
+      <h2>App Not Found</h2>
+      <p style="margin-top: 8px;">This link may have expired or the app was removed.</p>
+      <a href="/" class="btn btn-primary" style="display: inline-block; margin-top: 20px; text-decoration: none;">Upload a New App</a>
+    </div>
+
+    <!-- App info + install -->
+    <div class="install-card" id="installCard" style="display: none;">
+      <img class="install-icon" id="appIcon" src="/images/default-icon.png" alt="App Icon">
+      <h2 id="appName">App Name</h2>
+      <div class="install-version" id="appVersion">v1.0</div>
+      <div class="install-bundle" id="appBundleId">com.example.app</div>
+      <div class="file-size-info" id="appFileSize"></div>
+
+      <a class="install-btn" id="installBtn" href="#">
+        Install App
+      </a>
+
+      <div class="install-instructions">
+        <p>Tap <strong>Install</strong>, then tap <strong>"Install"</strong> on the confirmation popup.</p>
+        <p style="margin-top: 4px;">The app will appear on your home screen.</p>
+      </div>
+
+      <div class="non-ios-warning" id="nonIosWarning">
+        <strong>Not an iOS device</strong>
+        <p style="margin-top: 4px;">OTA installation only works on iOS devices using Safari. Please open this link on your iPhone or iPad in Safari.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <p>Install On Air — iOS OTA Distribution</p>
+  </div>
+
+  <script src="/js/install.js"></script>
+</body>
+</html>

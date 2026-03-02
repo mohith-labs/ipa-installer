@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Install On Air — OTA iOS App Distribution</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <div class="header">
+    <h1>Install <span>On Air</span></h1>
+    <p>Upload your IPA file and share it with your team. Install iOS apps over the air — no App Store needed.</p>
+  </div>
+
+  <div class="container">
+
+    <!-- Upload Zone -->
+    <div class="upload-zone" id="uploadZone">
+      <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <h2>Drop your IPA file here</h2>
+      <p>or <span class="browse-link">browse files</span></p>
+      <p style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">Supports .ipa files up to 500MB</p>
+      <input type="file" class="file-input" id="fileInput" accept=".ipa">
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-header">
+        <div class="progress-filename" id="progressFilename"></div>
+        <div class="progress-percent" id="progressPercent">0%</div>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressBar"></div>
+      </div>
+      <div class="progress-status" id="progressStatus">Uploading...</div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-message" id="errorMessage"></div>
+
+    <!-- Result -->
+    <div class="result-section" id="resultSection">
+      <div class="result-card">
+
+        <div class="app-info">
+          <img class="app-icon" id="resultIcon" src="/images/default-icon.png" alt="App Icon">
+          <div class="app-details">
+            <h3 id="resultName">App Name</h3>
+            <div class="app-meta">
+              <span id="resultVersion">v1.0</span>
+              <span id="resultBuild"></span>
+            </div>
+            <div class="app-meta">
+              <span id="resultBundleId" style="font-family: monospace; font-size: 12px;"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="qr-section">
+          <img id="resultQR" alt="QR Code">
+          <p>Scan with your iOS device to install</p>
+        </div>
+
+        <div class="link-section">
+          <label>Install Link</label>
+          <div class="link-input-group">
+            <input type="text" class="link-input" id="resultLink" readonly>
+            <button class="copy-btn" id="copyBtn">Copy</button>
+          </div>
+        </div>
+
+        <div class="result-actions">
+          <button class="btn btn-outline" id="uploadAnotherBtn">Upload Another</button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <p>Install On Air — iOS OTA Distribution</p>
+    <p style="margin-top: 4px;">Requires HTTPS &amp; iOS Safari for installation</p>
+  </div>
+
+  <script src="/js/upload.js"></script>
+</body>
+</html>
