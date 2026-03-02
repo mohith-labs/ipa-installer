@@ -10,10 +10,7 @@ services:
       - MAX_FILE_SIZE=${MAX_FILE_SIZE:-524288000}
       - RETENTION_HOURS=${RETENTION_HOURS:-48}
     volumes:
-      # Persist uploads across container restarts
       - uploads_data:/app/uploads
-      # Mount certs for HTTPS (optional)
-      - ./certs:/app/certs:ro
     restart: unless-stopped
 
 volumes:
