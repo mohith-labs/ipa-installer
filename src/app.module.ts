@@ -10,6 +10,7 @@ import { AppInfoModule } from './app-info/app-info.module';
 import { ManifestModule } from './manifest/manifest.module';
 import { CleanupModule } from './cleanup/cleanup.module';
 import { AppsListModule } from './apps-list/apps-list.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AppsListModule } from './apps-list/apps-list.module';
     ManifestModule,
     CleanupModule,
     AppsListModule,
+    HealthModule,
   ],
 })
 export class AppModule {}

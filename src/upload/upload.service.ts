@@ -38,6 +38,7 @@ export class UploadService {
       metadata.itmsLink = itmsLink;
       metadata.uploadedAt = new Date().toISOString();
       metadata.fileSize = file.size;
+      metadata.uploadStatus = storageType === 's3' ? 'uploading' : 'ready';
 
       const metadataJson = JSON.stringify(metadata, null, 2);
 
@@ -107,33 +108,78 @@ export class UploadService {
   }
 
   /**
-   * Uploads the IPA file to S3 in the background and cleans up the temp
-   * directory when done. Errors are logged but do not affect the user response.
+   * Uploads the IPA file to S3 in the background with retry logic and
+   * status tracking. Cleans up the temp directory only after success or
+   * all retries are exhausted.
    */
   private uploadIpaInBackground(
     uploadId: string,
     ipaPath: string,
     tempDir: string,
   ): void {
-    const ipaStream = fs.createReadStream(ipaPath);
+    const maxRetries = 3;
 
-    this.storageService
-      .saveFile(`${uploadId}/app.ipa`, ipaStream, 'application/octet-stream')
-      .then(() => {
+    const attempt = async (retryCount: number): Promise<void> => {
+      try {
+        const ipaStream = fs.createReadStream(ipaPath);
+        await this.storageService.saveFile(
+          `${uploadId}/app.ipa`,
+          ipaStream,
+          'application/octet-stream',
+        );
+
+        // Update metadata to mark the upload as ready
+        await this.updateUploadStatus(uploadId, 'ready');
         this.logger.log(`Background IPA upload complete: ${uploadId}`);
-      })
-      .catch((err) => {
-        this.logger.error(`Background IPA upload failed for ${uploadId}:`, err);
-      })
-      .finally(() => {
-        // Clean up temp directory regardless of success/failure
-        try {
-          if (fs.existsSync(tempDir)) {
-            fs.rmSync(tempDir, { recursive: true, force: true });
-          }
-        } catch {
-          // Ignore cleanup errors
+      } catch (err) {
+        if (retryCount < maxRetries) {
+          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+          this.logger.warn(
+            `Background IPA upload failed for ${uploadId} (attempt ${retryCount + 1}/${maxRetries}), retrying in ${delay}ms...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return attempt(retryCount + 1);
         }
-      });
+
+        this.logger.error(
+          `Background IPA upload failed permanently for ${uploadId} after ${maxRetries} attempts:`,
+          err,
+        );
+        await this.updateUploadStatus(uploadId, 'failed');
+      }
+    };
+
+    attempt(0).finally(() => {
+      // Clean up temp directory after all attempts
+      try {
+        if (fs.existsSync(tempDir)) {
+          fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+  }
+
+  /**
+   * Updates the uploadStatus field in the stored metadata.
+   */
+  private async updateUploadStatus(
+    uploadId: string,
+    status: 'uploading' | 'ready' | 'failed',
+  ): Promise<void> {
+    try {
+      const metadataKey = `${uploadId}/metadata.json`;
+      const buffer = await this.storageService.readFile(metadataKey);
+      const metadata = JSON.parse(buffer.toString('utf-8'));
+      metadata.uploadStatus = status;
+      await this.storageService.saveFile(
+        metadataKey,
+        Buffer.from(JSON.stringify(metadata, null, 2), 'utf-8'),
+        'application/json',
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to update upload status for ${uploadId}:`, err);
+    }
   }
 }

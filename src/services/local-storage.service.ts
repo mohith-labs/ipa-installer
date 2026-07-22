@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
+import { BadRequestException } from '@nestjs/common';
 import { Readable } from 'stream';
 import { IStorageService, IFileStreamResult } from '../common/interfaces/storage.interface';
 
@@ -14,8 +15,20 @@ export class LocalStorageService implements IStorageService {
     this.uploadDir = this.configService.get<string>('app.uploadDir', './uploads');
   }
 
+  /**
+   * Resolves a storage key to an absolute path and verifies it stays
+   * within the upload directory to prevent path-traversal attacks.
+   */
+  private safePath(key: string): string {
+    const resolved = path.resolve(this.uploadDir, key);
+    if (!resolved.startsWith(path.resolve(this.uploadDir))) {
+      throw new BadRequestException('Invalid storage key');
+    }
+    return resolved;
+  }
+
   async saveFile(key: string, data: Buffer | Readable, _contentType?: string): Promise<void> {
-    const filePath = path.join(this.uploadDir, key);
+    const filePath = this.safePath(key);
     const dir = path.dirname(filePath);
 
     if (!fs.existsSync(dir)) {
@@ -35,22 +48,22 @@ export class LocalStorageService implements IStorageService {
   }
 
   async readFile(key: string): Promise<Buffer> {
-    const filePath = path.join(this.uploadDir, key);
+    const filePath = this.safePath(key);
     return fs.readFileSync(filePath);
   }
 
   async readFileStream(key: string): Promise<Readable> {
-    const filePath = path.join(this.uploadDir, key);
+    const filePath = this.safePath(key);
     return fs.createReadStream(filePath);
   }
 
   async fileExists(key: string): Promise<boolean> {
-    const filePath = path.join(this.uploadDir, key);
+    const filePath = this.safePath(key);
     return fs.existsSync(filePath);
   }
 
   async deleteDirectory(prefix: string): Promise<void> {
-    const dirPath = path.join(this.uploadDir, prefix);
+    const dirPath = this.safePath(prefix);
     if (fs.existsSync(dirPath)) {
       fs.rmSync(dirPath, { recursive: true, force: true });
     }
@@ -68,7 +81,7 @@ export class LocalStorageService implements IStorageService {
   }
 
   async getLastModified(key: string): Promise<Date | undefined> {
-    const filePath = path.join(this.uploadDir, key);
+    const filePath = this.safePath(key);
     try {
       const stat = fs.statSync(filePath);
       return stat.mtime;
@@ -78,7 +91,7 @@ export class LocalStorageService implements IStorageService {
   }
 
   async getFileStream(key: string): Promise<IFileStreamResult | null> {
-    const filePath = path.join(this.uploadDir, key);
+    const filePath = this.safePath(key);
     try {
       const stat = fs.statSync(filePath);
       const stream = fs.createReadStream(filePath);
