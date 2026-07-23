@@ -1,11 +1,14 @@
-import { Controller, Get, Inject, Param, Res, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Res, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import * as path from 'path';
 import { STORAGE_SERVICE, IStorageService } from '../common/interfaces/storage.interface';
+import { ValidateUploadIdPipe } from '../common/pipes/validate-upload-id.pipe';
 
 @Controller()
 export class AppInfoController {
+  private readonly logger = new Logger(AppInfoController.name);
+
   constructor(
     private readonly configService: ConfigService,
     @Inject(STORAGE_SERVICE)
@@ -26,7 +29,7 @@ export class AppInfoController {
 
   @Get('api/app/:id')
   async getAppMetadata(
-    @Param('id') id: string,
+    @Param('id', ValidateUploadIdPipe) id: string,
     @Res() res: Response,
   ): Promise<void> {
     const baseUrl = this.configService.get<string>('app.baseUrl');
@@ -41,7 +44,17 @@ export class AppInfoController {
     }
 
     const metadataBuffer = await this.storageService.readFile(metadataKey);
-    const metadata = JSON.parse(metadataBuffer.toString('utf-8'));
+
+    let metadata: any;
+    try {
+      metadata = JSON.parse(metadataBuffer.toString('utf-8'));
+    } catch {
+      this.logger.error(\`Corrupted metadata for \${id}\`);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        error: 'Corrupted app metadata',
+      });
+      return;
+    }
 
     res.json({
       metadata,
@@ -52,7 +65,7 @@ export class AppInfoController {
 
   @Get('api/icon/:id')
   async getIcon(
-    @Param('id') id: string,
+    @Param('id', ValidateUploadIdPipe) id: string,
     @Res() res: Response,
   ): Promise<void> {
     const iconKey = `${id}/icon.png`;
@@ -75,7 +88,7 @@ export class AppInfoController {
 
   @Get('api/download/:id')
   async downloadIpa(
-    @Param('id') id: string,
+    @Param('id', ValidateUploadIdPipe) id: string,
     @Res() res: Response,
   ): Promise<void> {
     const ipaKey = `${id}/app.ipa`;

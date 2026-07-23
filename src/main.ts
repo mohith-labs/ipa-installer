@@ -10,6 +10,14 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port', 3000);
   const storageType = configService.get<string>('app.storageType', 'local');
+  const corsOrigin = configService.get<string>('app.corsOrigin', '*');
+
+  // Enable CORS
+  app.enableCors({
+    origin: corsOrigin,
+    methods: ['GET', 'POST'],
+    maxAge: 3600,
+  });
 
   // Ensure uploads directory exists for local storage
   if (storageType === 'local') {

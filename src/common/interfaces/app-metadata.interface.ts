@@ -9,4 +9,5 @@ export interface IAppMetadata {
   itmsLink?: string;
   uploadedAt?: string;
   fileSize?: number;
+  uploadStatus?: 'uploading' | 'ready' | 'failed';
 }
