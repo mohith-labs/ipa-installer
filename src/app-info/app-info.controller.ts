@@ -49,7 +49,7 @@ export class AppInfoController {
     try {
       metadata = JSON.parse(metadataBuffer.toString('utf-8'));
     } catch {
-      this.logger.error(\`Corrupted metadata for \${id}\`);
+      this.logger.error(`Corrupted metadata for ${id}`);
       res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         error: 'Corrupted app metadata',
       });
