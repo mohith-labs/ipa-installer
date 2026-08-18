@@ -3,12 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#0a0a0f">
   <title>IPA Installer — OTA iOS App Distribution</title>
   <link rel="stylesheet" href="/css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+    }
+  }
+  </script>
 </head>
 <body>
+
+  <!-- Three.js background canvas -->
+  <canvas id="heroCanvas"></canvas>
 
   <div class="header">
     <div class="header-logo">
@@ -115,6 +124,6 @@
     </div>
   </div>
 
-  <script src="/js/upload.js"></script>
+  <script type="module" src="/js/upload.js"></script>
 </body>
 </html>

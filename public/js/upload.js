@@ -1,3 +1,5 @@
+import { initHeroScene } from './hero-scene.js';
+
 document.addEventListener('DOMContentLoaded', () => {
   const uploadZone = document.getElementById('uploadZone');
   const fileInput = document.getElementById('fileInput');
@@ -11,6 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const copyBtn = document.getElementById('copyBtn');
   const uploadAnotherBtn = document.getElementById('uploadAnotherBtn');
 
+  // --- Init Three.js hero scene ---
+  const heroScene = initHeroScene('heroCanvas');
+
   // --- Drag and Drop ---
 
   ['dragenter', 'dragover'].forEach(event => {
@@ -18,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       e.stopPropagation();
       uploadZone.classList.add('drag-over');
+      if (heroScene) heroScene.setDragging(true);
     });
   });
 
@@ -26,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       e.stopPropagation();
       uploadZone.classList.remove('drag-over');
+      if (heroScene) heroScene.setDragging(false);
     });
   });
 
@@ -96,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const data = JSON.parse(xhr.responseText);
           if (data.success) {
+            if (heroScene) heroScene.triggerSuccess();
             showResult(data);
           } else {
             showUploadError(data.error || 'Upload failed');
