@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { STORAGE_SERVICE, IStorageService } from '../common/interfaces/storage.interface';
 import { MetadataCacheService } from '../services/metadata-cache.service';
+import { IpaCacheService } from '../services/ipa-cache.service';
 
 @Injectable()
 export class CleanupService {
@@ -13,6 +14,7 @@ export class CleanupService {
     @Inject(STORAGE_SERVICE)
     private readonly storageService: IStorageService,
     private readonly metadataCacheService: MetadataCacheService,
+    private readonly ipaCacheService: IpaCacheService,
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -43,6 +45,7 @@ export class CleanupService {
           if (now - uploadedAt > retentionMs) {
             await this.storageService.deleteDirectory(dir);
             this.metadataCacheService.invalidatePrefix(dir);
+            this.ipaCacheService.evict(dir);
             this.logger.log(`Cleaned up expired upload: ${dir}`);
           }
         } else {
@@ -54,6 +57,7 @@ export class CleanupService {
           if (lastModified && now - lastModified.getTime() > retentionMs) {
             await this.storageService.deleteDirectory(dir);
             this.metadataCacheService.invalidatePrefix(dir);
+            this.ipaCacheService.evict(dir);
             this.logger.log(`Cleaned up stale upload directory: ${dir}`);
           }
         }
