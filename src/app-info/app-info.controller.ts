@@ -166,9 +166,17 @@ export class AppInfoController {
   ): Promise<void> {
     const ipaKey = `${id}/app.ipa`;
 
-    // Always stream through this server. Even in S3 mode, proxying gives
-    // better speed than redirecting to self-hosted S3 (which often has
-    // high TTFB), and it guarantees correct HEAD/Content-Length for iOS.
+    // Use signed URL redirect so iOS downloads directly from S3.
+    // This avoids proxying the IPA through the VPS (double hop).
+    if (this.storageService.getSignedUrl) {
+      const signedUrl = await this.storageService.getSignedUrl(ipaKey, 7200);
+      if (signedUrl) {
+        res.redirect(302, signedUrl);
+        return;
+      }
+    }
+
+    // Fallback: stream through this server (local storage or no signed URL)
     const result = await this.storageService.getFileStream(ipaKey);
 
     if (!result) {
