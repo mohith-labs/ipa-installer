@@ -14,6 +14,10 @@ export default registerAs('app', () => ({
     accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
     forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+    // When true, IPA downloads stream through the server instead of
+    // redirecting to a signed S3 URL. Useful when the S3 server is
+    // slower than the VPS network (e.g. self-hosted MinIO/9Drive).
+    proxyDownloads: process.env.S3_PROXY_DOWNLOADS === 'true',
   },
   corsOrigin: process.env.CORS_ORIGIN ?? '*',
 }));

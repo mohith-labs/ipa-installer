@@ -16,6 +16,7 @@ services:
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-}
       - S3_FORCE_PATH_STYLE=${S3_FORCE_PATH_STYLE:-false}
+      - S3_PROXY_DOWNLOADS=${S3_PROXY_DOWNLOADS:-false}
     volumes:
       - uploads_data:/app/uploads
     restart: unless-stopped

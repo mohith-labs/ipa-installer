@@ -165,9 +165,10 @@ export class AppInfoController {
     @Res() res: Response,
   ): Promise<void> {
     const ipaKey = `${id}/app.ipa`;
+    const proxyDownloads = this.configService.get<boolean>('app.s3.proxyDownloads', false);
 
-    // If storage supports signed URLs, redirect directly to S3
-    if (this.storageService.getSignedUrl) {
+    // If storage supports signed URLs and proxy mode is off, redirect to S3
+    if (!proxyDownloads && this.storageService.getSignedUrl) {
       const signedUrl = await this.storageService.getSignedUrl(ipaKey, 7200);
       if (signedUrl) {
         res.redirect(302, signedUrl);
@@ -175,7 +176,7 @@ export class AppInfoController {
       }
     }
 
-    // Fallback: stream through this server (local storage or signed URL unavailable)
+    // Stream through this server (local storage, proxy mode, or no signed URL)
     const result = await this.storageService.getFileStream(ipaKey);
 
     if (!result) {
