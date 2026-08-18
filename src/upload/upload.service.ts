@@ -47,46 +47,37 @@ export class UploadService {
 
       // Step 4: Persist files to storage
       if (storageType === 's3') {
-        // Start all uploads in parallel — metadata, icon, and IPA.
-        // We only await metadata + icon (small files needed for the install page).
-        // The IPA upload is fire-and-forget with retries.
-        const smallUploads: Promise<void>[] = [];
-
-        smallUploads.push(
-          this.storageService.saveFile(
-            `${uploadId}/metadata.json`,
-            Buffer.from(metadataJson, 'utf-8'),
-            'application/json',
-          ),
-        );
-
-        const iconPath = path.join(outputDir, 'icon.png');
-        if (fs.existsSync(iconPath)) {
-          const iconBuffer = fs.readFileSync(iconPath);
-          smallUploads.push(
-            this.storageService.saveFile(
-              `${uploadId}/icon.png`,
-              iconBuffer,
-              'image/png',
-            ),
-          );
-        }
-
-        // Fire off the IPA background upload immediately (don't await).
-        // Pass metadata so status updates avoid re-reading from S3.
+        // Upload everything to S3 in the background — don't block the response.
+        // The user gets the QR code immediately. Metadata and icon are served
+        // from the in-memory cache until S3 catches up. The install page works
+        // instantly because getAppMetadata and getManifest check cache first.
         const ipaPath = path.join(outputDir, 'app.ipa');
-        this.uploadIpaInBackground(uploadId, ipaPath, outputDir, metadata);
+        const iconPath = path.join(outputDir, 'icon.png');
+        const iconBuffer = fs.existsSync(iconPath)
+          ? fs.readFileSync(iconPath)
+          : null;
 
-        // Only block the response on small files
-        await Promise.all(smallUploads);
+        this.uploadAllToS3InBackground(
+          uploadId, ipaPath, outputDir, metadata,
+          Buffer.from(metadataJson, 'utf-8'), iconBuffer,
+        );
       } else {
         // For local mode, just write the enriched metadata (files already in place)
         fs.writeFileSync(path.join(outputDir, 'metadata.json'), metadataJson);
       }
 
-      // Populate cache so first install page load is instant
+      // Populate caches so install page / manifest are instant (no S3 needed)
       const metadataKey = `${uploadId}/metadata.json`;
       this.metadataCacheService.set(metadataKey, Buffer.from(metadataJson, 'utf-8'));
+      if (storageType === 's3') {
+        const iconPath = path.join(outputDir, 'icon.png');
+        if (fs.existsSync(iconPath)) {
+          this.metadataCacheService.set(
+            `${uploadId}/icon.png`,
+            fs.readFileSync(iconPath),
+          );
+        }
+      }
 
       return {
         success: true,
@@ -116,50 +107,79 @@ export class UploadService {
   }
 
   /**
-   * Uploads the IPA file to S3 in the background with retry logic and
-   * status tracking. Cleans up the temp directory only after success or
-   * all retries are exhausted.
+   * Uploads all files (metadata, icon, IPA) to S3 in the background.
+   * None of these block the upload response — everything is served from
+   * the in-memory cache until S3 catches up.
    */
-  private uploadIpaInBackground(
+  private uploadAllToS3InBackground(
     uploadId: string,
     ipaPath: string,
     tempDir: string,
     metadata: IAppMetadata,
+    metadataBuffer: Buffer,
+    iconBuffer: Buffer | null,
   ): void {
     const maxRetries = 3;
 
-    const attempt = async (retryCount: number): Promise<void> => {
-      try {
-        const ipaStream = fs.createReadStream(ipaPath);
-        await this.storageService.saveFile(
-          `${uploadId}/app.ipa`,
-          ipaStream,
-          'application/octet-stream',
-        );
-
-        // Update metadata to mark the upload as ready
-        await this.updateUploadStatus(uploadId, metadata, 'ready');
-        this.logger.log(`Background IPA upload complete: ${uploadId}`);
-      } catch (err) {
-        if (retryCount < maxRetries) {
-          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-          this.logger.warn(
-            `Background IPA upload failed for ${uploadId} (attempt ${retryCount + 1}/${maxRetries}), retrying in ${delay}ms...`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          return attempt(retryCount + 1);
+    const uploadWithRetry = async (
+      label: string,
+      fn: () => Promise<void>,
+    ): Promise<boolean> => {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          await fn();
+          return true;
+        } catch (err) {
+          if (attempt < maxRetries) {
+            const delay = Math.pow(2, attempt) * 1000;
+            this.logger.warn(
+              `S3 upload ${label} for ${uploadId} failed (attempt ${attempt + 1}/${maxRetries}), retrying in ${delay}ms...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          } else {
+            this.logger.error(
+              `S3 upload ${label} for ${uploadId} failed permanently after ${maxRetries} attempts:`,
+              err,
+            );
+          }
         }
-
-        this.logger.error(
-          `Background IPA upload failed permanently for ${uploadId} after ${maxRetries} attempts:`,
-          err,
-        );
-        await this.updateUploadStatus(uploadId, metadata, 'failed');
       }
+      return false;
     };
 
-    attempt(0).finally(() => {
-      // Clean up temp directory after all attempts
+    // Upload metadata + icon + IPA all in parallel
+    const tasks: Promise<boolean>[] = [];
+
+    tasks.push(uploadWithRetry('metadata', () =>
+      this.storageService.saveFile(
+        `${uploadId}/metadata.json`, metadataBuffer, 'application/json',
+      ),
+    ));
+
+    if (iconBuffer) {
+      tasks.push(uploadWithRetry('icon', () =>
+        this.storageService.saveFile(
+          `${uploadId}/icon.png`, iconBuffer, 'image/png',
+        ),
+      ));
+    }
+
+    tasks.push(uploadWithRetry('ipa', () => {
+      const ipaStream = fs.createReadStream(ipaPath);
+      return this.storageService.saveFile(
+        `${uploadId}/app.ipa`, ipaStream, 'application/octet-stream',
+      );
+    }));
+
+    Promise.all(tasks).then(async (results) => {
+      const allSucceeded = results.every(Boolean);
+      await this.updateUploadStatus(
+        uploadId, metadata, allSucceeded ? 'ready' : 'failed',
+      );
+      if (allSucceeded) {
+        this.logger.log(`All S3 uploads complete: ${uploadId}`);
+      }
+    }).finally(() => {
       try {
         if (fs.existsSync(tempDir)) {
           fs.rmSync(tempDir, { recursive: true, force: true });

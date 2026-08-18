@@ -2,21 +2,16 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class MetadataCacheService {
-  private readonly cache = new Map<string, { data: Buffer; cachedAt: number }>();
-  private readonly TTL = 5 * 60 * 1000; // 5 minutes
+  // Metadata is immutable after upload. No TTL needed — entries are
+  // invalidated only when the cleanup service deletes an upload.
+  private readonly cache = new Map<string, Buffer>();
 
   get(key: string): Buffer | null {
-    const entry = this.cache.get(key);
-    if (!entry) return null;
-    if (Date.now() - entry.cachedAt > this.TTL) {
-      this.cache.delete(key);
-      return null;
-    }
-    return entry.data;
+    return this.cache.get(key) ?? null;
   }
 
   set(key: string, data: Buffer): void {
-    this.cache.set(key, { data, cachedAt: Date.now() });
+    this.cache.set(key, data);
   }
 
   invalidate(key: string): void {

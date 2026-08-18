@@ -81,7 +81,17 @@ export class AppInfoController {
     const iconKey = `${id}/icon.png`;
     const defaultIcon = path.join(process.cwd(), 'public', 'images', 'default-icon.png');
 
-    // If storage supports signed URLs, redirect directly to S3
+    // 1. Try in-memory cache (populated on upload, avoids any S3 call)
+    const cached = this.metadataCacheService.get(iconKey);
+    if (cached) {
+      res.set('Content-Type', 'image/png');
+      res.set('Content-Length', String(cached.length));
+      res.set('Cache-Control', 'public, max-age=3600');
+      res.send(cached);
+      return;
+    }
+
+    // 2. Signed URL redirect (S3 mode, cache miss)
     if (this.storageService.getSignedUrl) {
       const signedUrl = await this.storageService.getSignedUrl(iconKey, 7200);
       if (signedUrl) {
@@ -90,7 +100,7 @@ export class AppInfoController {
       }
     }
 
-    // Fallback: stream through this server (local storage or missing signed URL)
+    // 3. Stream through server (local storage)
     const result = await this.storageService.getFileStream(iconKey);
 
     if (result) {
@@ -113,21 +123,38 @@ export class AppInfoController {
     @Param('id', ValidateUploadIdPipe) id: string,
     @Res() res: Response,
   ): Promise<void> {
-    const ipaKey = `${id}/app.ipa`;
+    // Try to get file size from cached metadata first (no S3 call).
+    // Falls back to S3 HeadObject only on cache miss.
+    const metadataKey = `${id}/metadata.json`;
+    const cached = this.metadataCacheService.get(metadataKey);
+    let fileSize: number | undefined;
 
-    const info = this.storageService.getFileInfo
-      ? await this.storageService.getFileInfo(ipaKey)
-      : await this.storageService.getFileStream(ipaKey);
+    if (cached) {
+      try {
+        const meta = JSON.parse(cached.toString('utf-8'));
+        fileSize = meta.fileSize;
+      } catch {
+        // Corrupted cache entry — fall through to S3
+      }
+    }
 
-    if (!info) {
-      res.status(HttpStatus.NOT_FOUND).end();
-      return;
+    if (fileSize === undefined) {
+      const ipaKey = `${id}/app.ipa`;
+      const info = this.storageService.getFileInfo
+        ? await this.storageService.getFileInfo(ipaKey)
+        : await this.storageService.getFileStream(ipaKey);
+
+      if (!info) {
+        res.status(HttpStatus.NOT_FOUND).end();
+        return;
+      }
+      fileSize = info.contentLength;
     }
 
     res.set('Content-Type', 'application/octet-stream');
     res.set('Content-Disposition', 'attachment; filename="app.ipa"');
-    if (info.contentLength !== undefined) {
-      res.set('Content-Length', String(info.contentLength));
+    if (fileSize !== undefined) {
+      res.set('Content-Length', String(fileSize));
     }
     res.status(HttpStatus.OK).end();
   }
