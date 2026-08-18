@@ -24,19 +24,21 @@ export class ManifestController {
     const baseUrl = this.configService.get<string>('app.baseUrl');
     const metadataKey = `${id}/metadata.json`;
 
-    const exists = await this.storageService.fileExists(metadataKey);
-    if (!exists) {
-      res.status(HttpStatus.NOT_FOUND).send('App not found');
-      return;
-    }
-
-    const metadataBuffer = await this.storageService.readFile(metadataKey);
-
     let metadata: any;
     try {
+      const metadataBuffer = await this.storageService.readFile(metadataKey);
       metadata = JSON.parse(metadataBuffer.toString('utf-8'));
-    } catch {
-      this.logger.error(`Corrupted metadata for ${id}`);
+    } catch (err: any) {
+      // readFile throws on missing key (NoSuchKey / ENOENT)
+      if (
+        err.name === 'NoSuchKey' ||
+        err.$metadata?.httpStatusCode === 404 ||
+        err.code === 'ENOENT'
+      ) {
+        res.status(HttpStatus.NOT_FOUND).send('App not found');
+        return;
+      }
+      this.logger.error(`Failed to read metadata for ${id}:`, err);
       res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         error: 'Corrupted app metadata',
       });

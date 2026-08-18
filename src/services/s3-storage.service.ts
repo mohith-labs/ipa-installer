@@ -42,6 +42,10 @@ export class S3StorageService implements IStorageService, OnModuleInit {
         secretAccessKey,
       },
       forcePathStyle,
+      // Disable SDK v3 checksum headers — S3-compatible stores (MinIO, 9Drive)
+      // don't understand these, causing slower signed URLs and extra overhead.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     };
 
     if (endpoint) {

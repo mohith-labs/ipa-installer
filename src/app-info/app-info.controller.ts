@@ -35,21 +35,22 @@ export class AppInfoController {
     const baseUrl = this.configService.get<string>('app.baseUrl');
     const metadataKey = `${id}/metadata.json`;
 
-    const exists = await this.storageService.fileExists(metadataKey);
-    if (!exists) {
-      res.status(HttpStatus.NOT_FOUND).json({
-        error: 'App not found or link has expired',
-      });
-      return;
-    }
-
-    const metadataBuffer = await this.storageService.readFile(metadataKey);
-
     let metadata: any;
     try {
+      const metadataBuffer = await this.storageService.readFile(metadataKey);
       metadata = JSON.parse(metadataBuffer.toString('utf-8'));
-    } catch {
-      this.logger.error(`Corrupted metadata for ${id}`);
+    } catch (err: any) {
+      if (
+        err.name === 'NoSuchKey' ||
+        err.$metadata?.httpStatusCode === 404 ||
+        err.code === 'ENOENT'
+      ) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          error: 'App not found or link has expired',
+        });
+        return;
+      }
+      this.logger.error(`Corrupted metadata for ${id}:`, err);
       res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         error: 'Corrupted app metadata',
       });
