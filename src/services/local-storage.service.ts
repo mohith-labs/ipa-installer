@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { BadRequestException } from '@nestjs/common';
 import { Readable } from 'stream';
-import { IStorageService, IFileStreamResult } from '../common/interfaces/storage.interface';
+import { IStorageService, IFileStreamResult, IFileInfo } from '../common/interfaces/storage.interface';
 
 @Injectable()
 export class LocalStorageService implements IStorageService {
@@ -97,6 +97,18 @@ export class LocalStorageService implements IStorageService {
       const stream = fs.createReadStream(filePath);
       return {
         stream,
+        contentLength: stat.size,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async getFileInfo(key: string): Promise<IFileInfo | null> {
+    const fullPath = this.safePath(key);
+    try {
+      const stat = fs.statSync(fullPath);
+      return {
         contentLength: stat.size,
       };
     } catch {

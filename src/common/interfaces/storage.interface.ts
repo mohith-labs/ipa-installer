@@ -8,6 +8,11 @@ export interface IFileStreamResult {
   contentType?: string;
 }
 
+export interface IFileInfo {
+  contentLength?: number;
+  contentType?: string;
+}
+
 export interface IStorageService {
   /**
    * Save a file to storage.
@@ -55,6 +60,12 @@ export interface IStorageService {
    * Returns null if the file does not exist.
    */
   getFileStream(key: string): Promise<IFileStreamResult | null>;
+
+  /**
+   * Get file metadata (size, type) without reading the file body.
+   * Returns null if the file does not exist.
+   */
+  getFileInfo?(key: string): Promise<IFileInfo | null>;
 
   /**
    * Generate a pre-signed URL for direct client access to a file.

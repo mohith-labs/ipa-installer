@@ -45,18 +45,16 @@ export class ManifestController {
       return;
     }
 
-    // When storage supports signed URLs (S3), embed direct download links
-    // in the manifest so iOS downloads from S3 without proxying through
-    // this server. Falls back to proxy URLs for local storage.
-    let ipaUrl = `${baseUrl}/api/download/${id}`;
+    // IPA URL always goes through our proxy endpoint so iOS can HEAD it
+    // for Content-Length (some S3-compatible stores reject HEAD on signed
+    // URLs, causing iOS to show "Waiting..." indefinitely).
+    // The proxy endpoint will 302 redirect to a signed URL for the actual GET.
+    const ipaUrl = `${baseUrl}/api/download/${id}`;
     let iconUrl = `${baseUrl}/api/icon/${id}`;
 
+    // Icons are small — use signed URL for direct access when available
     if (this.storageService.getSignedUrl) {
-      const [signedIpa, signedIcon] = await Promise.all([
-        this.storageService.getSignedUrl(`${id}/app.ipa`, 7200),
-        this.storageService.getSignedUrl(`${id}/icon.png`, 7200),
-      ]);
-      if (signedIpa) ipaUrl = signedIpa;
+      const signedIcon = await this.storageService.getSignedUrl(`${id}/icon.png`, 7200);
       if (signedIcon) iconUrl = signedIcon;
     }
 

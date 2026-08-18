@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, Res, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Get, Head, Inject, Param, Res, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import * as path from 'path';
@@ -94,6 +94,33 @@ export class AppInfoController {
       res.set('Content-Type', 'image/png');
       res.sendFile(path.resolve(defaultIcon));
     }
+  }
+
+  // HEAD must be registered before GET so Express matches it first.
+  // iOS sends HEAD to learn Content-Length before the real GET download.
+  // Some S3-compatible stores reject HEAD on signed URLs, so we proxy it.
+  @Head('api/download/:id')
+  async downloadIpaHead(
+    @Param('id', ValidateUploadIdPipe) id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const ipaKey = `${id}/app.ipa`;
+
+    const info = this.storageService.getFileInfo
+      ? await this.storageService.getFileInfo(ipaKey)
+      : await this.storageService.getFileStream(ipaKey);
+
+    if (!info) {
+      res.status(HttpStatus.NOT_FOUND).end();
+      return;
+    }
+
+    res.set('Content-Type', 'application/octet-stream');
+    res.set('Content-Disposition', 'attachment; filename="app.ipa"');
+    if (info.contentLength !== undefined) {
+      res.set('Content-Length', String(info.contentLength));
+    }
+    res.status(HttpStatus.OK).end();
   }
 
   @Get('api/download/:id')

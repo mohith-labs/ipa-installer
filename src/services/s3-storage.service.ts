@@ -10,7 +10,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
-import { IStorageService, IFileStreamResult } from '../common/interfaces/storage.interface';
+import { IStorageService, IFileStreamResult, IFileInfo } from '../common/interfaces/storage.interface';
 
 @Injectable()
 export class S3StorageService implements IStorageService, OnModuleInit {
@@ -214,6 +214,26 @@ export class S3StorageService implements IStorageService, OnModuleInit {
       };
     } catch (err: any) {
       if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  async getFileInfo(key: string): Promise<IFileInfo | null> {
+    try {
+      const response = await this.s3.send(
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+      return {
+        contentLength: response.ContentLength,
+        contentType: response.ContentType,
+      };
+    } catch (err: any) {
+      if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
         return null;
       }
       throw err;
