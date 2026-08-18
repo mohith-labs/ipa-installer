@@ -43,9 +43,24 @@ export class ManifestController {
       return;
     }
 
+    // When storage supports signed URLs (S3), embed direct download links
+    // in the manifest so iOS downloads from S3 without proxying through
+    // this server. Falls back to proxy URLs for local storage.
+    let ipaUrl = `${baseUrl}/api/download/${id}`;
+    let iconUrl = `${baseUrl}/api/icon/${id}`;
+
+    if (this.storageService.getSignedUrl) {
+      const [signedIpa, signedIcon] = await Promise.all([
+        this.storageService.getSignedUrl(`${id}/app.ipa`, 7200),
+        this.storageService.getSignedUrl(`${id}/icon.png`, 7200),
+      ]);
+      if (signedIpa) ipaUrl = signedIpa;
+      if (signedIcon) iconUrl = signedIcon;
+    }
+
     const manifestXml = this.manifestGenerator.generateManifest({
-      ipaUrl: `${baseUrl}/api/download/${id}`,
-      iconUrl: `${baseUrl}/api/icon/${id}`,
+      ipaUrl,
+      iconUrl,
       bundleId: metadata.bundleId,
       version: metadata.version,
       title: metadata.name,

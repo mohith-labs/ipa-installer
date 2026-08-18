@@ -9,6 +9,7 @@ import {
   DeleteObjectsCommand,
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { IStorageService, IFileStreamResult } from '../common/interfaces/storage.interface';
 
 @Injectable()
@@ -202,6 +203,14 @@ export class S3StorageService implements IStorageService, OnModuleInit {
       }
       throw err;
     }
+  }
+
+  async getSignedUrl(key: string, expiresInSeconds = 3600): Promise<string | null> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+    return getSignedUrl(this.s3, command, { expiresIn: expiresInSeconds });
   }
 
   private async streamToBuffer(stream: Readable): Promise<Buffer> {

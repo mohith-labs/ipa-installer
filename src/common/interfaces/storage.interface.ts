@@ -55,4 +55,12 @@ export interface IStorageService {
    * Returns null if the file does not exist.
    */
   getFileStream(key: string): Promise<IFileStreamResult | null>;
+
+  /**
+   * Generate a pre-signed URL for direct client access to a file.
+   * Returns null if the storage backend does not support signed URLs.
+   * @param key - Storage key
+   * @param expiresInSeconds - URL validity duration (default 3600)
+   */
+  getSignedUrl?(key: string, expiresInSeconds?: number): Promise<string | null>;
 }

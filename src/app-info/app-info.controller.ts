@@ -71,7 +71,16 @@ export class AppInfoController {
     const iconKey = `${id}/icon.png`;
     const defaultIcon = path.join(process.cwd(), 'public', 'images', 'default-icon.png');
 
-    // Single S3/fs call — gets stream + size together, returns null if missing
+    // If storage supports signed URLs, redirect directly to S3
+    if (this.storageService.getSignedUrl) {
+      const signedUrl = await this.storageService.getSignedUrl(iconKey, 7200);
+      if (signedUrl) {
+        res.redirect(302, signedUrl);
+        return;
+      }
+    }
+
+    // Fallback: stream through this server (local storage or missing signed URL)
     const result = await this.storageService.getFileStream(iconKey);
 
     if (result) {
@@ -93,9 +102,16 @@ export class AppInfoController {
   ): Promise<void> {
     const ipaKey = `${id}/app.ipa`;
 
-    // Single S3/fs call — gets stream + content-length in one request.
-    // This is critical for iOS OTA: without Content-Length the device shows
-    // "Waiting..." indefinitely because it can't determine download progress.
+    // If storage supports signed URLs, redirect directly to S3
+    if (this.storageService.getSignedUrl) {
+      const signedUrl = await this.storageService.getSignedUrl(ipaKey, 7200);
+      if (signedUrl) {
+        res.redirect(302, signedUrl);
+        return;
+      }
+    }
+
+    // Fallback: stream through this server (local storage or signed URL unavailable)
     const result = await this.storageService.getFileStream(ipaKey);
 
     if (!result) {

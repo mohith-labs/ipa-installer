@@ -103,4 +103,8 @@ export class LocalStorageService implements IStorageService {
       return null;
     }
   }
+
+  async getSignedUrl(_key: string, _expiresInSeconds?: number): Promise<string | null> {
+    return null;
+  }
 }
