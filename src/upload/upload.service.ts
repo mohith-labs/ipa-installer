@@ -6,7 +6,6 @@ import { IpaParserService } from '../services/ipa-parser.service';
 import { QrGeneratorService } from '../services/qr-generator.service';
 import { STORAGE_SERVICE, IStorageService } from '../common/interfaces/storage.interface';
 import { MetadataCacheService } from '../services/metadata-cache.service';
-import { IpaCacheService } from '../services/ipa-cache.service';
 import { IAppMetadata } from '../common/interfaces/app-metadata.interface';
 
 @Injectable()
@@ -20,7 +19,6 @@ export class UploadService {
     @Inject(STORAGE_SERVICE)
     private readonly storageService: IStorageService,
     private readonly metadataCacheService: MetadataCacheService,
-    private readonly ipaCacheService: IpaCacheService,
   ) {}
 
   async processUpload(file: Express.Multer.File, uploadId: string) {
@@ -148,10 +146,6 @@ export class UploadService {
       }
       return false;
     };
-
-    // Cache the IPA on disk before the temp dir is cleaned up.
-    // This makes repeat downloads instant (served from VPS disk instead of S3).
-    this.ipaCacheService.cacheFromPath(uploadId, ipaPath);
 
     // Upload metadata + icon + IPA all in parallel
     const tasks: Promise<boolean>[] = [];

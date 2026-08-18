@@ -4,7 +4,6 @@ import { Response } from 'express';
 import * as path from 'path';
 import { STORAGE_SERVICE, IStorageService } from '../common/interfaces/storage.interface';
 import { MetadataCacheService } from '../services/metadata-cache.service';
-import { IpaCacheService } from '../services/ipa-cache.service';
 import { ValidateUploadIdPipe } from '../common/pipes/validate-upload-id.pipe';
 
 @Controller()
@@ -16,7 +15,6 @@ export class AppInfoController {
     @Inject(STORAGE_SERVICE)
     private readonly storageService: IStorageService,
     private readonly metadataCacheService: MetadataCacheService,
-    private readonly ipaCacheService: IpaCacheService,
   ) {}
 
   @Get('app/:id')
@@ -166,20 +164,11 @@ export class AppInfoController {
     @Param('id', ValidateUploadIdPipe) id: string,
     @Res() res: Response,
   ): Promise<void> {
-    // 1. Check disk cache first (instant — no S3 call)
-    const cached = this.ipaCacheService.get(id);
-    if (cached) {
-      this.logger.log(`IPA cache hit for ${id}`);
-      res.set('Content-Type', 'application/octet-stream');
-      res.set('Content-Disposition', 'attachment; filename="app.ipa"');
-      res.set('Content-Length', String(cached.contentLength));
-      cached.stream.pipe(res);
-      return;
-    }
-
-    // 2. Cache miss — fetch from S3, tee to disk cache for next time
-    this.logger.log(`IPA cache miss for ${id}, fetching from storage`);
     const ipaKey = `${id}/app.ipa`;
+
+    // Always stream through this server. Even in S3 mode, proxying gives
+    // better speed than redirecting to self-hosted S3 (which often has
+    // high TTFB), and it guarantees correct HEAD/Content-Length for iOS.
     const result = await this.storageService.getFileStream(ipaKey);
 
     if (!result) {
@@ -193,8 +182,6 @@ export class AppInfoController {
       res.set('Content-Length', String(result.contentLength));
     }
 
-    // Tee: stream to client + save to disk cache simultaneously
-    const clientStream = this.ipaCacheService.cacheFromStream(id, result.stream);
-    clientStream.pipe(res);
+    result.stream.pipe(res);
   }
 }

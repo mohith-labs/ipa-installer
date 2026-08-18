@@ -4,7 +4,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { MetadataCacheService } from './services/metadata-cache.service';
-import { IpaCacheService } from './services/ipa-cache.service';
 import appConfig from './config/app.config';
 import { StorageModule } from './storage/storage.module';
 import { UploadModule } from './upload/upload.module';
@@ -33,7 +32,7 @@ import { HealthModule } from './health/health.module';
     AppsListModule,
     HealthModule,
   ],
-  providers: [MetadataCacheService, IpaCacheService],
-  exports: [MetadataCacheService, IpaCacheService],
+  providers: [MetadataCacheService],
+  exports: [MetadataCacheService],
 })
 export class AppModule {}
