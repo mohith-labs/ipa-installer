@@ -6,6 +6,7 @@ import * as fs from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.disable('x-powered-by');
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port', 3000);
