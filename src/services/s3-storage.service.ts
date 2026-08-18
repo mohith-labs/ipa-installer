@@ -3,13 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { Readable } from 'stream';
 import {
   S3Client,
-  PutObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Upload } from '@aws-sdk/lib-storage';
 import { IStorageService, IFileStreamResult } from '../common/interfaces/storage.interface';
 
 @Injectable()
@@ -56,16 +56,22 @@ export class S3StorageService implements IStorageService, OnModuleInit {
   }
 
   async saveFile(key: string, data: Buffer | Readable, contentType?: string): Promise<void> {
-    const body = Buffer.isBuffer(data) ? data : await this.streamToBuffer(data);
-
-    await this.s3.send(
-      new PutObjectCommand({
+    // Use multipart streaming upload — avoids buffering entire file in memory.
+    // For small Buffers this still works correctly (Upload handles both).
+    const upload = new Upload({
+      client: this.s3,
+      params: {
         Bucket: this.bucket,
         Key: key,
-        Body: body,
+        Body: data,
         ContentType: contentType,
-      }),
-    );
+      },
+      // 10MB parts, up to 4 concurrent part uploads
+      partSize: 10 * 1024 * 1024,
+      queueSize: 4,
+    });
+
+    await upload.done();
   }
 
   async readFile(key: string): Promise<Buffer> {
@@ -76,7 +82,12 @@ export class S3StorageService implements IStorageService, OnModuleInit {
       }),
     );
 
-    return this.streamToBuffer(response.Body as Readable);
+    const stream = response.Body as Readable;
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 
   async readFileStream(key: string): Promise<Readable> {
@@ -213,11 +224,4 @@ export class S3StorageService implements IStorageService, OnModuleInit {
     return getSignedUrl(this.s3, command, { expiresIn: expiresInSeconds });
   }
 
-  private async streamToBuffer(stream: Readable): Promise<Buffer> {
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    return Buffer.concat(chunks);
-  }
 }
