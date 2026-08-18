@@ -18,6 +18,9 @@ export class CleanupService {
   @Cron(CronExpression.EVERY_HOUR)
   async handleCleanup(): Promise<void> {
     const retentionHours = this.configService.get<number>('app.retentionHours', 48);
+
+    // 0 means retention is disabled — never delete uploads
+    if (retentionHours <= 0) return;
     const retentionMs = retentionHours * 60 * 60 * 1000;
     const now = Date.now();
 
