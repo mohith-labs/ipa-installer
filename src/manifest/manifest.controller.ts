@@ -54,15 +54,17 @@ export class ManifestController {
       return;
     }
 
-    // IPA URL always goes through our proxy endpoint so iOS can HEAD it
-    // for Content-Length (some S3-compatible stores reject HEAD on signed
-    // URLs, causing iOS to show "Waiting..." indefinitely).
-    // The proxy endpoint will 302 redirect to a signed URL for the actual GET.
-    const ipaUrl = `${baseUrl}/api/download/${id}`;
+    // Use signed URL for direct S3 download when available.
+    // 9Drive accepts HEAD on GET-signed URLs, so iOS can get Content-Length
+    // without a proxy hop. Falls back to the proxy endpoint for local storage
+    // or if signed URL generation fails.
+    let ipaUrl = `${baseUrl}/api/download/${id}`;
     let iconUrl = `${baseUrl}/api/icon/${id}`;
 
-    // Icons are small — use signed URL for direct access when available
     if (this.storageService.getSignedUrl) {
+      const signedIpa = await this.storageService.getSignedUrl(`${id}/app.ipa`, 7200);
+      if (signedIpa) ipaUrl = signedIpa;
+
       const signedIcon = await this.storageService.getSignedUrl(`${id}/icon.png`, 7200);
       if (signedIcon) iconUrl = signedIcon;
     }
