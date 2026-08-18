@@ -2,6 +2,7 @@ import { Controller, Get, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { STORAGE_SERVICE, IStorageService } from '../common/interfaces/storage.interface';
 import { IAppMetadata } from '../common/interfaces/app-metadata.interface';
+import { MetadataCacheService } from '../services/metadata-cache.service';
 
 @Controller('api')
 export class AppsListController {
@@ -11,6 +12,7 @@ export class AppsListController {
     private readonly configService: ConfigService,
     @Inject(STORAGE_SERVICE)
     private readonly storageService: IStorageService,
+    private readonly metadataCacheService: MetadataCacheService,
   ) {}
 
   @Get('apps')
@@ -30,13 +32,17 @@ export class AppsListController {
 
     const apps: Array<IAppMetadata & { iconUrl: string }> = [];
 
-    for (const dir of dirs) {
-      try {
+    const results = await Promise.allSettled(
+      dirs.map(async (dir) => {
         const metadataKey = `${dir}/metadata.json`;
-        const exists = await this.storageService.fileExists(metadataKey);
-        if (!exists) continue;
-
-        const metadataBuffer = await this.storageService.readFile(metadataKey);
+        let metadataBuffer: Buffer;
+        const cached = this.metadataCacheService.get(metadataKey);
+        if (cached) {
+          metadataBuffer = cached;
+        } else {
+          metadataBuffer = await this.storageService.readFile(metadataKey);
+          this.metadataCacheService.set(metadataKey, metadataBuffer);
+        }
         const metadata: IAppMetadata = JSON.parse(
           metadataBuffer.toString('utf-8'),
         );
@@ -46,12 +52,16 @@ export class AppsListController {
           metadata.id = dir;
         }
 
-        apps.push({
+        return {
           ...metadata,
           iconUrl: `${baseUrl}/api/icon/${dir}`,
-        });
-      } catch (err) {
-        this.logger.warn(`Failed to read metadata for ${dir}:`, err);
+        };
+      }),
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        apps.push(result.value);
       }
     }
 

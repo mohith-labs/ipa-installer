@@ -5,6 +5,8 @@ import * as fs from 'fs';
 import { IpaParserService } from '../services/ipa-parser.service';
 import { QrGeneratorService } from '../services/qr-generator.service';
 import { STORAGE_SERVICE, IStorageService } from '../common/interfaces/storage.interface';
+import { MetadataCacheService } from '../services/metadata-cache.service';
+import { IAppMetadata } from '../common/interfaces/app-metadata.interface';
 
 @Injectable()
 export class UploadService {
@@ -16,6 +18,7 @@ export class UploadService {
     private readonly qrGenerator: QrGeneratorService,
     @Inject(STORAGE_SERVICE)
     private readonly storageService: IStorageService,
+    private readonly metadataCacheService: MetadataCacheService,
   ) {}
 
   async processUpload(file: Express.Multer.File, uploadId: string) {
@@ -44,8 +47,9 @@ export class UploadService {
 
       // Step 4: Persist files to storage
       if (storageType === 's3') {
-        // Upload metadata + icon first (small files, needed for QR/install page).
-        // These run in parallel for speed.
+        // Start all uploads in parallel — metadata, icon, and IPA.
+        // We only await metadata + icon (small files needed for the install page).
+        // The IPA upload is fire-and-forget with retries.
         const smallUploads: Promise<void>[] = [];
 
         smallUploads.push(
@@ -68,17 +72,21 @@ export class UploadService {
           );
         }
 
-        await Promise.all(smallUploads);
-
-        // Upload the large IPA file in the background — don't block the response.
-        // The user gets the QR code immediately. The IPA will be available by the
-        // time they scan the QR and tap "Install" (typically 5-10+ seconds later).
+        // Fire off the IPA background upload immediately (don't await).
+        // Pass metadata so status updates avoid re-reading from S3.
         const ipaPath = path.join(outputDir, 'app.ipa');
-        this.uploadIpaInBackground(uploadId, ipaPath, outputDir);
+        this.uploadIpaInBackground(uploadId, ipaPath, outputDir, metadata);
+
+        // Only block the response on small files
+        await Promise.all(smallUploads);
       } else {
         // For local mode, just write the enriched metadata (files already in place)
         fs.writeFileSync(path.join(outputDir, 'metadata.json'), metadataJson);
       }
+
+      // Populate cache so first install page load is instant
+      const metadataKey = `${uploadId}/metadata.json`;
+      this.metadataCacheService.set(metadataKey, Buffer.from(metadataJson, 'utf-8'));
 
       return {
         success: true,
@@ -116,6 +124,7 @@ export class UploadService {
     uploadId: string,
     ipaPath: string,
     tempDir: string,
+    metadata: IAppMetadata,
   ): void {
     const maxRetries = 3;
 
@@ -129,7 +138,7 @@ export class UploadService {
         );
 
         // Update metadata to mark the upload as ready
-        await this.updateUploadStatus(uploadId, 'ready');
+        await this.updateUploadStatus(uploadId, metadata, 'ready');
         this.logger.log(`Background IPA upload complete: ${uploadId}`);
       } catch (err) {
         if (retryCount < maxRetries) {
@@ -145,7 +154,7 @@ export class UploadService {
           `Background IPA upload failed permanently for ${uploadId} after ${maxRetries} attempts:`,
           err,
         );
-        await this.updateUploadStatus(uploadId, 'failed');
+        await this.updateUploadStatus(uploadId, metadata, 'failed');
       }
     };
 
@@ -163,21 +172,22 @@ export class UploadService {
 
   /**
    * Updates the uploadStatus field in the stored metadata.
+   * Writes directly from the in-memory metadata object — no S3 read needed.
    */
   private async updateUploadStatus(
     uploadId: string,
+    metadata: IAppMetadata,
     status: 'uploading' | 'ready' | 'failed',
   ): Promise<void> {
     try {
-      const metadataKey = `${uploadId}/metadata.json`;
-      const buffer = await this.storageService.readFile(metadataKey);
-      const metadata = JSON.parse(buffer.toString('utf-8'));
       metadata.uploadStatus = status;
+      const metadataBuffer = Buffer.from(JSON.stringify(metadata, null, 2), 'utf-8');
       await this.storageService.saveFile(
-        metadataKey,
-        Buffer.from(JSON.stringify(metadata, null, 2), 'utf-8'),
+        `${uploadId}/metadata.json`,
+        metadataBuffer,
         'application/json',
       );
+      this.metadataCacheService.set(`${uploadId}/metadata.json`, metadataBuffer);
     } catch (err) {
       this.logger.warn(`Failed to update upload status for ${uploadId}:`, err);
     }

@@ -7,6 +7,7 @@ import {
   HeadObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
+  PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
@@ -60,8 +61,22 @@ export class S3StorageService implements IStorageService, OnModuleInit {
   }
 
   async saveFile(key: string, data: Buffer | Readable, contentType?: string): Promise<void> {
-    // Use multipart streaming upload — avoids buffering entire file in memory.
-    // For small Buffers this still works correctly (Upload handles both).
+    const SMALL_FILE_THRESHOLD = 5 * 1024 * 1024; // 5MB
+
+    if (Buffer.isBuffer(data) && data.length < SMALL_FILE_THRESHOLD) {
+      // Small buffer — skip multipart overhead, use single PutObject request.
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: data,
+          ContentType: contentType,
+        }),
+      );
+      return;
+    }
+
+    // Readable stream or large Buffer — use multipart streaming upload.
     const upload = new Upload({
       client: this.s3,
       params: {
@@ -70,7 +85,6 @@ export class S3StorageService implements IStorageService, OnModuleInit {
         Body: data,
         ContentType: contentType,
       },
-      // 10MB parts, up to 4 concurrent part uploads
       partSize: 10 * 1024 * 1024,
       queueSize: 4,
     });

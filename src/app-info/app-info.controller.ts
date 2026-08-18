@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import * as path from 'path';
 import { STORAGE_SERVICE, IStorageService } from '../common/interfaces/storage.interface';
+import { MetadataCacheService } from '../services/metadata-cache.service';
 import { ValidateUploadIdPipe } from '../common/pipes/validate-upload-id.pipe';
 
 @Controller()
@@ -13,6 +14,7 @@ export class AppInfoController {
     private readonly configService: ConfigService,
     @Inject(STORAGE_SERVICE)
     private readonly storageService: IStorageService,
+    private readonly metadataCacheService: MetadataCacheService,
   ) {}
 
   @Get('app/:id')
@@ -37,7 +39,14 @@ export class AppInfoController {
 
     let metadata: any;
     try {
-      const metadataBuffer = await this.storageService.readFile(metadataKey);
+      const cached = this.metadataCacheService.get(metadataKey);
+      let metadataBuffer: Buffer;
+      if (cached) {
+        metadataBuffer = cached;
+      } else {
+        metadataBuffer = await this.storageService.readFile(metadataKey);
+        this.metadataCacheService.set(metadataKey, metadataBuffer);
+      }
       metadata = JSON.parse(metadataBuffer.toString('utf-8'));
     } catch (err: any) {
       if (
