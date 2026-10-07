@@ -49,6 +49,20 @@
     <!-- Apps list -->
     <div class="apps-list" id="appsList" style="display: none;"></div>
 
+    <!-- Infinite scroll loader (shown while fetching the next page) -->
+    <div class="scroll-loader" id="scrollLoader" style="display: none;">
+      <div class="spinner spinner-sm"></div>
+      <p>Loading more...</p>
+    </div>
+
+    <!-- End-of-list marker -->
+    <div class="list-end" id="listEnd" style="display: none;">
+      <span>You've reached the end</span>
+    </div>
+
+    <!-- Sentinel observed by IntersectionObserver to trigger the next page -->
+    <div class="scroll-sentinel" id="scrollSentinel" aria-hidden="true"></div>
+
     <div class="apps-actions" id="appsActions" style="display: none;">
       <a href="/" class="btn btn-primary" style="text-decoration: none;">Upload New App</a>
     </div>
