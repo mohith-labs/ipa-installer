@@ -996,6 +996,59 @@ body::before {
   padding: 14px 32px;
 }
 
+/* ============ Infinite Scroll ============ */
+
+.scroll-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  animation: fadeIn 0.2s ease;
+}
+
+.scroll-loader p {
+  margin-top: 4px;
+}
+
+.spinner-sm {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+  margin: 0 auto 8px;
+}
+
+.list-end {
+  text-align: center;
+  padding: 24px 0 4px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  animation: fadeIn 0.3s ease;
+}
+
+.scroll-retry {
+  display: block;
+  margin: 20px auto 0;
+  padding: 12px 28px;
+  flex: none;
+}
+
+/* Zero-height probe element watched by IntersectionObserver. */
+.scroll-sentinel {
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-loader,
+  .list-end {
+    animation: none;
+  }
+}
+
 /* ============ Particle Indicator ============ */
 
 .upload-particles {
